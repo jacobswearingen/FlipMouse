@@ -431,12 +431,12 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
         log_message("Mouse mode disabled by CLAMSHELL key (252)");
       }
       // Inject CLAMSHELL key DOWN to android input system
-      if (dev->uidev) 
-      {
-        libevdev_uinput_write_event(dev->uidev, EV_KEY, 252, 1);
-        libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
-        log_message("Injected CLAMSHELL key DOWN to android input system");
-      }
+    }
+    if (dev->uidev) 
+    {
+      libevdev_uinput_write_event(dev->uidev, EV_KEY, 252, ev->value);
+      libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
+      log_message("Injected CLAMSHELL key %s to android input system", ev->value ? "DOWN" : "UP");
     }
     return PASS_THRU_EVENT;
 
