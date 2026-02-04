@@ -20,7 +20,7 @@
 /* Configuration */
 #define DEV_INPUT "/dev/input"
 #define LOG_FILE "/cache/FlipMouse.log"
-#define DEBUG 1
+//#define DEBUG 1
 #ifdef DEBUG
 #define ENABLE_LOG 1
 #else
