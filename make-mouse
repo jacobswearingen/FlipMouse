@@ -14,6 +14,7 @@ for arg in "$@"; do
 done
 
 CWD=$(pwd)
+EVDEV_VERSION="1.13.6"
 
 if [ $DEBUG_MODE -eq 1 ]; then
     echo "=== Running in DEBUG mode for Linux ==="
@@ -26,18 +27,18 @@ if [ $DEBUG_MODE -eq 1 ]; then
     if ! pkg-config --exists libevdev; then
         echo "Building libevdev for host system..."
         cd "$TMP_DIR"
-        if [ ! -f "libevdev-1.13.2.tar.xz" ]; then
+        if [ ! -f "libevdev-$EVDEV_VERSION.tar.xz" ]; then
             echo "Downloading libevdev..."
-            wget -nv https://www.freedesktop.org/software/libevdev/libevdev-1.13.2.tar.xz
+            wget -nv https://www.freedesktop.org/software/libevdev/libevdev-$EVDEV_VERSION.tar.xz
         fi
 
-        if [ ! -d "libevdev-1.13.2" ]; then
+        if [ ! -d "libevdev-$EVDEV_VERSION" ]; then
             echo "Extracting libevdev..."
-            tar xf libevdev-1.13.2.tar.xz
+            tar xf libevdev-$EVDEV_VERSION.tar.xz
         fi
 
         # Build libevdev for host
-        cd "$TMP_DIR/libevdev-1.13.2"
+        cd "$TMP_DIR/libevdev-$EVDEV_VERSION"
         echo "Configuring libevdev for host..."
         ./configure --prefix="$TMP_DIR/install"
         echo "Building libevdev..."
@@ -68,7 +69,7 @@ if [ $DEBUG_MODE -eq 1 ]; then
 else
     # Original Android build logic
     # NDK path - update this to match your setup
-    NDK=$HOME/Android/Sdk/ndk/29.0.13113456
+    NDK=$ANDROID_NDK_ROOT
     API=30
     TARGET=armv7a-linux-androideabi
     TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
@@ -85,18 +86,18 @@ else
     # Download and extract libevdev
     cd "$BUILD_DIR"
     if [[ ! -f "install/include/libevdev-1.0/libevdev/libevdev.h" || ! -f "install/include/libevdev-1.0/libevdev/libevdev-uinput.h" ]]; then
-        if [ ! -f "libevdev-1.13.2.tar.xz" ]; then
+        if [ ! -f "libevdev-$EVDEV_VERSION.tar.xz" ]; then
             echo "Downloading libevdev..."
-            wget -nv https://www.freedesktop.org/software/libevdev/libevdev-1.13.2.tar.xz
+            wget -nv https://www.freedesktop.org/software/libevdev/libevdev-$EVDEV_VERSION.tar.xz
         fi
 
-        if [ ! -d "libevdev-1.13.2" ]; then
+        if [ ! -d "libevdev-$EVDEV_VERSION" ]; then
             echo "Extracting libevdev..."
-            tar xf libevdev-1.13.2.tar.xz
+            tar xf libevdev-$EVDEV_VERSION.tar.xz
         fi
 
         # Build libevdev
-        cd "$BUILD_DIR/libevdev-1.13.2"
+        cd "$BUILD_DIR/libevdev-$EVDEV_VERSION"
         echo "Configuring libevdev..."
 
         # Configure with Android toolchain
