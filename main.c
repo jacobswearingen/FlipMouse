@@ -30,6 +30,7 @@
 /* Constants */
 #define MIN_MOUSE_SPEED 1
 #define WHEEL_SLOWDOWN_FACTOR 5
+#define KEY_CLAMSHELL 252
 
 /* Event action return codes */
 typedef enum
@@ -306,24 +307,13 @@ static int mouse_toggle(void)
 
 static int mouse_handle_event(device_t *dev, struct input_event *ev)
 {
-  // Turn off mouse if CLAMSHELL key (252) is pressed and inject to Android InputReader
-  if (ev->type == EV_KEY && ev->code == 252 && ev->value == 1) {
-    if (app_state.mouse.enabled) {
-      app_state.mouse.enabled = 0;
-      log_message("Mouse mode disabled by CLAMSHELL key (252)");
-    }
-    // Inject CLAMSHELL key DOWN to android input system
-    if (dev->uidev) {
-      libevdev_uinput_write_event(dev->uidev, EV_KEY, 252, 1);
-      libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
-      log_message("Injected CLAMSHELL key DOWN to android input system");
-    }
-    return CHANGED_TO_MOUSE;
-  }
 
   static unsigned int slowdown_counter = 0;
   int keycode = ev->code;
+  
+#ifdef DEBUG
   log_message("Handling event type %d, code %d, value %d", ev->type, ev->code, ev->value);
+#endif
 
   /* Handle MSC_SCAN events for special keys */
   if (ev->type == EV_MSC)
@@ -429,6 +419,23 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     ev->code = REL_WHEEL;
     ev->value = -1;
     return CHANGED_TO_MOUSE;
+
+  // Turn off mouse if CLAMSHELL key (252) is pressed and inject to Android InputReader
+  // if (ev->type == EV_KEY && ev->code == 252 && ev->value == 1) {
+  case KEY_CLAMSHELL:
+    if (ev->value == 1) {
+      if (app_state.mouse.enabled) {
+        app_state.mouse.enabled = 0;
+        log_message("Mouse mode disabled by CLAMSHELL key (252)");
+      }
+      // Inject CLAMSHELL key DOWN to android input system
+      if (dev->uidev) {
+        libevdev_uinput_write_event(dev->uidev, EV_KEY, 252, 1);
+        libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
+        log_message("Injected CLAMSHELL key DOWN to android input system");
+      }
+    }
+    return PASS_THRU_EVENT;
 
   default:
     return PASS_THRU_EVENT;
