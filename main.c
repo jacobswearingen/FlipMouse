@@ -423,13 +423,16 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
   // Turn off mouse if CLAMSHELL key (252) is pressed and inject to Android InputReader
   // if (ev->type == EV_KEY && ev->code == 252 && ev->value == 1) {
   case KEY_CLAMSHELL:
-    if (ev->value == 1) {
-      if (app_state.mouse.enabled) {
+    if (ev->value == 1) 
+    {
+      if (app_state.mouse.enabled) 
+      {
         app_state.mouse.enabled = 0;
         log_message("Mouse mode disabled by CLAMSHELL key (252)");
       }
       // Inject CLAMSHELL key DOWN to android input system
-      if (dev->uidev) {
+      if (dev->uidev) 
+      {
         libevdev_uinput_write_event(dev->uidev, EV_KEY, 252, 1);
         libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
         log_message("Injected CLAMSHELL key DOWN to android input system");
