@@ -307,7 +307,6 @@ static int mouse_toggle(void)
 
 static int mouse_handle_event(device_t *dev, struct input_event *ev)
 {
-
   static unsigned int slowdown_counter = 0;
   int keycode = ev->code;
   
@@ -421,7 +420,6 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     return CHANGED_TO_MOUSE;
 
   // Turn off mouse if CLAMSHELL key (252) is pressed and inject to Android InputReader
-  // if (ev->type == EV_KEY && ev->code == 252 && ev->value == 1) {
   case KEY_CLAMSHELL:
     if (ev->value == 1) 
     {
