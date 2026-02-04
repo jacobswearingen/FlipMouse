@@ -306,6 +306,15 @@ static int mouse_toggle(void)
 
 static int mouse_handle_event(device_t *dev, struct input_event *ev)
 {
+  // Turn off mouse if CLAMSHELL key (252) is pressed
+  if (ev->type == EV_KEY && ev->code == 252 && ev->value == 1) {
+    if (app_state.mouse.enabled) {
+      app_state.mouse.enabled = 0;
+      log_message("Mouse mode disabled by CLAMSHELL key (252)");
+    }
+    return CHANGED_TO_MOUSE;
+  }
+
   static unsigned int slowdown_counter = 0;
   int keycode = ev->code;
   log_message("Handling event type %d, code %d, value %d", ev->type, ev->code, ev->value);
