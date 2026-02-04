@@ -20,7 +20,7 @@
 /* Configuration */
 #define DEV_INPUT "/dev/input"
 #define LOG_FILE "/cache/FlipMouse.log"
-// #define DEBUG 0
+#define DEBUG 1
 #ifdef DEBUG
 #define ENABLE_LOG 1
 #else
@@ -82,6 +82,7 @@ typedef struct
 static const char *supported_devices[] = {
     "mtk-kpd",
     "matrix-keypad",
+    "gpio_keys",
     "AT Translated Set 2 keyboard", /* Laptop Keyboard */
     NULL};
 
@@ -307,6 +308,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
 {
   static unsigned int slowdown_counter = 0;
   int keycode = ev->code;
+  log_message("Handling event type %d, code %d, value %d", ev->type, ev->code, ev->value);
 
   /* Handle MSC_SCAN events for special keys */
   if (ev->type == EV_MSC)
@@ -507,15 +509,17 @@ static int devices_find_and_init(void)
 
         log_message("Successfully attached device: %s", dev->name);
 
-        /* Set keymap based on device */
-        if (i > 1)
-        { /* For laptop keyboard */
-          log_message("Using laptop keymap");
+        // Assign keymap based on device name
+        if (strcmp(dev->name, "mtk-kpd") == 0 || strcmp(dev->name, "matrix-keypad") == 0 || strcmp(dev->name, "gpio_keys") == 0) {
+          log_message("Using keypad keymap for %s", dev->name);
+          app_state.keymap = keypad_keymap;
+          app_state.keymap_size = sizeof(keypad_keymap) / sizeof(keypad_keymap[0]);
+        } else if (strcmp(dev->name, "AT Translated Set 2 keyboard") == 0) {
+          log_message("Using laptop keymap for %s", dev->name);
           app_state.keymap = laptop_keymap;
           app_state.keymap_size = sizeof(laptop_keymap) / sizeof(laptop_keymap[0]);
-        }
-        else
-        { /* For TCL Flip2 keypad */
+        } else {
+          log_message("Using default keypad keymap for %s", dev->name);
           app_state.keymap = keypad_keymap;
           app_state.keymap_size = sizeof(keypad_keymap) / sizeof(keypad_keymap[0]);
         }
