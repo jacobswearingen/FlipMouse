@@ -261,6 +261,7 @@ static int mouse_init(void)
   libevdev_enable_event_code(app_state.mouse.dev, EV_REL, REL_HWHEEL, NULL);
   libevdev_enable_event_code(app_state.mouse.dev, EV_KEY, BTN_LEFT, NULL);
   libevdev_enable_event_code(app_state.mouse.dev, EV_KEY, BTN_RIGHT, NULL);
+  libevdev_enable_event_code(app_state.mouse.dev, EV_KEY, KEY_FN, NULL);
 
   if (libevdev_uinput_create_from_device(app_state.mouse.dev,
                                          LIBEVDEV_UINPUT_OPEN_MANAGED,
@@ -420,24 +421,6 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     return CHANGED_TO_MOUSE;
 
   // Turn off mouse if CLAMSHELL key (252) is pressed and inject to Android InputReader
-  case KEY_CLAMSHELL:
-    if (ev->value == 1) 
-    {
-      if (app_state.mouse.enabled) 
-      {
-        app_state.mouse.enabled = 0;
-        log_message("Mouse mode disabled by CLAMSHELL key (252)");
-      }
-      // Inject CLAMSHELL key DOWN to android input system
-    }
-    if (dev->uidev) 
-    {
-      libevdev_uinput_write_event(dev->uidev, EV_KEY, 252, ev->value);
-      libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
-      log_message("Injected CLAMSHELL key %s to android input system", ev->value ? "DOWN" : "UP");
-    }
-    return PASS_THRU_EVENT;
-
   default:
     return PASS_THRU_EVENT;
   }
@@ -618,6 +601,54 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
         return mouse_toggle();
       }
       return CHANGED_TO_MOUSE;
+    }
+
+    /* Intercept KEY_POWER: send KEY_PROG_RED signal then re-inject KEY_POWER */
+    if (ev->code == KEY_POWER)
+    {
+      if (ev->value == 1 && app_state.mouse.uidev) /* Key press */
+      {
+        libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, KEY_FN, 1);
+        libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+        libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, KEY_FN, 0);
+        libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+        log_message("Injected KEY_FN signal on KEY_POWER press");
+      }
+      if (dev->uidev)
+      {
+        libevdev_uinput_write_event(dev->uidev, EV_KEY, KEY_POWER, ev->value);
+        libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
+        log_message("Forwarded KEY_POWER event");
+      }
+      return MUTE_EVENT;
+    }
+
+    /* Intercept KEY_CLAMSHELL: disable mouse, send KEY_PROG_RED signal then re-inject KEY_CLAMSHELL */
+    if (ev->code == KEY_CLAMSHELL)
+    {
+      if (ev->value == 1)
+      {
+        if (app_state.mouse.enabled)
+        {
+          app_state.mouse.enabled = 0;
+          log_message("Mouse mode disabled by CLAMSHELL key");
+        }
+        if (app_state.mouse.uidev)
+        {
+          libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, KEY_FN, 1);
+          libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+          libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, KEY_FN, 0);
+          libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+          log_message("Injected KEY_FN signal on KEY_CLAMSHELL press");
+        }
+      }
+      if (dev->uidev)
+      {
+        libevdev_uinput_write_event(dev->uidev, EV_KEY, KEY_CLAMSHELL, ev->value);
+        libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
+        log_message("Forwarded CLAMSHELL key %s", ev->value ? "DOWN" : "UP");
+      }
+      return MUTE_EVENT;
     }
   }
 
