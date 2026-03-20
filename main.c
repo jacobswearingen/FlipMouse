@@ -35,7 +35,7 @@
 /* Event action return codes */
 typedef enum
 {
-  CHANGED_TO_MOUSE = -2,
+  CHANGED_TO_MOUSE = -1,
   MUTE_EVENT = 0,
   PASS_THRU_EVENT = 1,
   CHANGED_EVENT = 2
@@ -55,6 +55,8 @@ typedef struct dev_st
   const char *name;
   struct libevdev *evdev;
   struct libevdev_uinput *uidev;
+  const keymap_t *keymap;
+  size_t keymap_size;
   struct dev_st *next;
 } device_t;
 
@@ -74,8 +76,6 @@ typedef struct
   device_t *devices;
   mouse_t mouse;
   FILE *log_fp;
-  const keymap_t *keymap;
-  size_t keymap_size;
   volatile sig_atomic_t running;
 } app_state_t;
 
@@ -122,8 +122,8 @@ static void devices_cleanup(void);
 
 /* Event handling */
 static int handle_input_event(device_t *dev, struct input_event *ev);
-static int keymap_get_keycode(int scanvalue);
-static int keymap_get_scanvalue(int keycode);
+static int keymap_get_keycode(const device_t *dev, int scanvalue);
+static int keymap_get_scanvalue(const device_t *dev, int keycode);
 
 /* Logging */
 static void log_init(void);
@@ -219,22 +219,22 @@ static void log_event(const char *prefix, struct input_event *ev)
 
 /* --- Keymap Functions --- */
 
-static int keymap_get_scanvalue(int keycode)
+static int keymap_get_scanvalue(const device_t *dev, int keycode)
 {
-  for (size_t i = 0; i < app_state.keymap_size; i++)
+  for (size_t i = 0; i < dev->keymap_size; i++)
   {
-    if (app_state.keymap[i].keycode == keycode)
-      return app_state.keymap[i].scancode;
+    if (dev->keymap[i].keycode == keycode)
+      return dev->keymap[i].scancode;
   }
   return -1; /* Not found */
 }
 
-static int keymap_get_keycode(int scanvalue)
+static int keymap_get_keycode(const device_t *dev, int scanvalue)
 {
-  for (size_t i = 0; i < app_state.keymap_size; i++)
+  for (size_t i = 0; i < dev->keymap_size; i++)
   {
-    if (app_state.keymap[i].scancode == scanvalue)
-      return app_state.keymap[i].keycode;
+    if (dev->keymap[i].scancode == scanvalue)
+      return dev->keymap[i].keycode;
   }
   return -1; /* Not found */
 }
@@ -308,7 +308,8 @@ static int mouse_toggle(void)
 
 static int mouse_handle_event(device_t *dev, struct input_event *ev)
 {
-  static unsigned int slowdown_counter = 0;
+  static unsigned int scroll_up_counter = 0;
+  static unsigned int scroll_down_counter = 0;
   int keycode = ev->code;
   
 #ifdef DEBUG
@@ -320,7 +321,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
   {
     if (keycode == MSC_SCAN)
     {
-      keycode = keymap_get_keycode(ev->value);
+      keycode = keymap_get_keycode(dev, ev->value);
       if (keycode != -1)
       {
         log_message("Scan code %d mapped to keycode %d", ev->value, keycode);
@@ -330,7 +331,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
   else if (ev->type == EV_KEY)
   {
     /* Skip KEY events that are handled via MSC_SCAN */
-    if (keymap_get_scanvalue(keycode) != -1)
+    if (keymap_get_scanvalue(dev, keycode) != -1)
     {
       log_message("Keycode %d handled by MSC_SCAN", keycode);
       return MUTE_EVENT;
@@ -403,7 +404,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     return CHANGED_TO_MOUSE;
 
   case KEY_MENU: /* Scroll up */
-    if (slowdown_counter++ % WHEEL_SLOWDOWN_FACTOR)
+    if (scroll_up_counter++ % WHEEL_SLOWDOWN_FACTOR)
       return MUTE_EVENT;
 
     ev->type = EV_REL;
@@ -412,7 +413,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     return CHANGED_TO_MOUSE;
 
   case KEY_SEND: /* Scroll down */
-    if (slowdown_counter++ % WHEEL_SLOWDOWN_FACTOR)
+    if (scroll_down_counter++ % WHEEL_SLOWDOWN_FACTOR)
       return MUTE_EVENT;
 
     ev->type = EV_REL;
@@ -518,16 +519,16 @@ static int devices_find_and_init(void)
         // Assign keymap based on device name
         if (strcmp(dev->name, "mtk-kpd") == 0 || strcmp(dev->name, "matrix-keypad") == 0 || strcmp(dev->name, "gpio_keys") == 0) {
           log_message("Using keypad keymap for %s", dev->name);
-          app_state.keymap = keypad_keymap;
-          app_state.keymap_size = sizeof(keypad_keymap) / sizeof(keypad_keymap[0]);
+          dev->keymap = keypad_keymap;
+          dev->keymap_size = sizeof(keypad_keymap) / sizeof(keypad_keymap[0]);
         } else if (strcmp(dev->name, "AT Translated Set 2 keyboard") == 0) {
           log_message("Using laptop keymap for %s", dev->name);
-          app_state.keymap = laptop_keymap;
-          app_state.keymap_size = sizeof(laptop_keymap) / sizeof(laptop_keymap[0]);
+          dev->keymap = laptop_keymap;
+          dev->keymap_size = sizeof(laptop_keymap) / sizeof(laptop_keymap[0]);
         } else {
           log_message("Using default keypad keymap for %s", dev->name);
-          app_state.keymap = keypad_keymap;
-          app_state.keymap_size = sizeof(keypad_keymap) / sizeof(keypad_keymap[0]);
+          dev->keymap = keypad_keymap;
+          dev->keymap_size = sizeof(keypad_keymap) / sizeof(keypad_keymap[0]);
         }
 
         /* Add to device list */
@@ -664,16 +665,20 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
 
 static void signal_handler(int sig)
 {
-  log_message("Received signal %d, shutting down", sig);
+  (void)sig;
   app_state.running = 0;
 }
 
 static void setup_signal_handlers(void)
 {
-  /* Use simple signal() function to avoid struct sigaction issues */
-  signal(SIGINT, signal_handler);
-  signal(SIGTERM, signal_handler);
-  signal(SIGHUP, signal_handler);
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = signal_handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESTART;
+  sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGTERM, &sa, NULL);
+  sigaction(SIGHUP, &sa, NULL);
 }
 
 /* --- Main Event Loop --- */

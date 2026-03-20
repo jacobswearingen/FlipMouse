@@ -2,4 +2,4 @@ build/
 .debug/
 .vscode/
 .clangd
-.gitignore
+compile_flags.txt
