@@ -20,6 +20,7 @@
 /* Configuration */
 #define DEV_INPUT "/dev/input"
 #define LOG_FILE "/cache/FlipMouse.log"
+#define APP_LAUNCH_COMMAND "am start -a android.intent.action.MAIN -c android.intent.category.APP_MESSAGING >/dev/null 2>&1"
 //#define DEBUG 1
 #ifdef DEBUG
 #define ENABLE_LOG 1
@@ -124,6 +125,7 @@ static void devices_cleanup(void);
 static int handle_input_event(device_t *dev, struct input_event *ev);
 static int keymap_get_keycode(const device_t *dev, int scanvalue);
 static int keymap_get_scanvalue(const device_t *dev, int keycode);
+static void launch_messaging_app(const device_t *dev);
 
 /* Logging */
 static void log_init(void);
@@ -595,6 +597,11 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
   /* Check if it's the toggle key */
   if (ev->type == EV_KEY)
   {
+    if (ev->code == KEY_A && ev->value == 0)
+    {
+      launch_messaging_app(dev);
+    }
+
     if (ev->code == KEY_HELP || ev->code == KEY_F12)
     {
       if (ev->value == 1)
@@ -659,6 +666,21 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
 
   /* Handle mouse events */
   return mouse_handle_event(dev, ev);
+}
+
+static void launch_messaging_app(const device_t *dev)
+{
+  int status;
+
+  status = system(APP_LAUNCH_COMMAND);
+  if (status == 0)
+  {
+    log_message("Launched messaging app from %s on KEY_A release", dev->name);
+  }
+  else
+  {
+    log_message("ERROR: Failed to launch messaging app from %s (status=%d)", dev->name, status);
+  }
 }
 
 /* --- Signal Handling --- */
